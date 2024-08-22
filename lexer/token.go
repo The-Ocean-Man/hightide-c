@@ -1,5 +1,7 @@
 package lexer
 
+import "fmt"
+
 type Line struct {
 	Content  []Token
 	Children []*Line
@@ -15,7 +17,18 @@ type Token struct {
 // }
 
 func (t Token) String() (s string, b bool) {
-	s, b = t.Data.(string)
+	switch data := t.Data.(type) {
+	case string:
+		return data, true
+	case int64:
+		return fmt.Sprint(data), true
+	case float64:
+		return fmt.Sprint(data), true
+	}
+
+	s = fmt.Sprint(t.Kind)
+	b = len(s) != 0
+
 	return
 }
 func (t Token) Number() (i int64, b bool) {

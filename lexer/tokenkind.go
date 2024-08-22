@@ -8,18 +8,46 @@ const (
 
 	// Keywords
 	MOD
+	USE
+	ALIAS
 	IF
 	ELSE
+	STRUCT
+	ENUM
+	VAR
+	CONST
+	RDO
+	REF
+	ATTR
 
 	// Symbols
 	PLUS
 	PLUSEQ
 	MINUS
 	MINUSEQ
+	STAR
+	STAREQ
+	SLASH
+	SLASHEQ
+	PERCENT
+	PERCENTEQ
 
-	DOT
-	LPAREN
-	RPAREN
+	LPAREN  // (
+	RPAREN  // )
+	LBRACE  // {
+	RBRACE  // }
+	LSQUARE // [
+	RSQUARE // ]
+	DOLLAR  // $
+	COMMA   // ,
+	BANG    // !
+
+	DOT        // .
+	DOTDOT     // ..
+	COLON      // :
+	COLONCOLON // ::
+	EQ         // =
+	EQEQ       // ==
 
 	// DYN
 	NAME // [_a-zA-Z][_a-zA-Z0-9]*

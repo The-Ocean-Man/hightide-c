@@ -1,17 +1,23 @@
 package lexer
 
-const eof_char rune = 0
+import (
+	"bufio"
+)
+
+const eof_char rune = '\x00'
 
 type CharStream struct {
-	text    []byte
+	// text    *string
+	reader  *bufio.Reader
 	idx     int
 	current rune
 
-	lineIdx int
+	lineIdx  int
+	firstEOF bool // Returns \n once when reached eof
 }
 
-func NewCharStream(txt []byte) CharStream {
-	return CharStream{txt, 0, 0, 0}
+func NewCharStream(r *bufio.Reader) CharStream {
+	return CharStream{r, 0, 0, 0, true}
 }
 
 func (c *CharStream) Next() rune {
@@ -36,14 +42,16 @@ func (c *CharStream) Current() rune {
 }
 
 func (c *CharStream) get() rune {
-	r := c.getAt(c.idx)
-	c.idx++
-	return r
-}
+	r, _, err := c.reader.ReadRune()
 
-func (c *CharStream) getAt(i int) rune {
-	if i < 0 || i >= len(c.text) {
+	if err != nil {
+		if c.current != '\n' && c.firstEOF {
+			c.firstEOF = false
+			return '\n'
+		}
+
 		return eof_char
 	}
-	return rune(c.text[i])
+
+	return r
 }

@@ -1,2 +1,5 @@
 go.sum
 dist
+
+**/*copy__*
+**/*ignore__*

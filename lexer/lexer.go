@@ -2,6 +2,7 @@ package lexer
 
 import (
 	"log"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -20,22 +21,6 @@ func NewLexer(s *CharStream) Lexer {
 	return Lexer{s, stack.New(), stack.New()}
 }
 
-func (l *Lexer) depthGreater(depth int) bool {
-	top := l.scopeDepths.Peek()
-	if top == nil {
-		return depth > 0
-	}
-	return depth > top.(int)
-}
-
-func (l *Lexer) depthLess(depth int) bool {
-	top := l.scopeDepths.Peek()
-	if top == nil {
-		return false
-	}
-	return depth < top.(int)
-}
-
 func (l *Lexer) Parse() []*Line {
 	lines := make([]*Line, 0, 20) // just preemptive capacity, all top level things
 	l.stream.Next()
@@ -45,38 +30,45 @@ func (l *Lexer) Parse() []*Line {
 	for {
 		depth := l.countAndSkipIndent()
 		line, eof := l.parseLine()
+		// fmt.Println(123)
 
-		if l.depthGreater(depth) {
+		if eof {
+			break
+		}
+
+		if len(line.Content) == 0 {
+			continue
+		}
+		if prevLine == nil && depth != 0 {
+			log.Fatalln("Program cannot start with indentation")
+		}
+
+		if depth > prevDepth {
 			l.scopes.Push(prevLine)
 			l.scopeDepths.Push(prevDepth)
 		}
-		if l.depthLess(depth) {
+		if depth < prevDepth {
 			for {
-				prevDepthPtr := l.scopeDepths.Peek()
-				var prevDepth int = 0
-				if prevDepthPtr != nil {
-					prevDepth = prevDepthPtr.(int)
-				}
-				if prevDepth == depth {
-					break
+
+				topDepth := l.scopeDepths.Peek()
+
+				if d, ok := topDepth.(int); ok {
+					if d == depth || d == 0 {
+						break
+					}
+				} else {
+					log.Fatalf("Unknown indentation amount '%d' at line %d\n", depth, l.stream.lineIdx)
 				}
 
+				// fmt.Println(l.scopeDepths.Pop())
 				l.scopes.Pop()
-				if l.scopeDepths.Pop() == nil {
-					log.Fatalln("Scopes broke in lexer")
-				}
 			}
 		}
 
-		if top := l.scopes.Peek(); top != nil {
-			top.(*Line).Children = append(top.(*Line).Children, line)
-		} else {
+		if depth == 0 {
 			lines = append(lines, line)
-		}
-
-		if eof {
-			// fmt.Println("dead")
-			break
+		} else {
+			l.scopes.Peek().(*Line).Children = append(l.scopes.Peek().(*Line).Children, line)
 		}
 
 		prevDepth = depth
@@ -140,6 +132,7 @@ func (l *Lexer) skipWs() {
 }
 
 func (l *Lexer) parseToken() Token {
+	//#region EOF and EOL
 	if l.stream.Current() == '\n' {
 		l.stream.Next()
 		return Token{EOL, nil}
@@ -149,7 +142,6 @@ func (l *Lexer) parseToken() Token {
 	}
 	l.skipWs()
 	c := l.stream.Current()
-
 	if c == 0 {
 		return Token{EOF, nil}
 	}
@@ -158,19 +150,38 @@ func (l *Lexer) parseToken() Token {
 		return Token{EOL, nil}
 	}
 
+	//#endregion EOF and EOL
+
 	c = l.stream.Current()
 
-	if c == '(' {
-		l.stream.Next()
-		return Token{LPAREN, nil}
-	} else if c == ')' {
-		l.stream.Next()
-		return Token{RPAREN, nil}
-	} else if c == '.' {
-		l.stream.Next()
-		return Token{DOT, nil}
+	//#region SYMBOLS
+	if tok, ok := l.matchSymbols(map[rune]TokenKind{
+		'(': LPAREN,
+		')': RPAREN,
+		'{': RBRACE,
+		'}': RBRACE,
+		'[': LSQUARE,
+		']': RSQUARE,
+		'$': DOLLAR,
+		',': COMMA,
+		'!': BANG,
+	}); ok {
+		return Token{tok, nil}
 	}
 
+	if tok, ok := l.singleOrDoubleToken('.', DOT, DOTDOT); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.singleOrDoubleToken(':', COLON, COLONCOLON); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.singleOrDoubleToken('=', EQ, EQEQ); ok {
+		return Token{tok, nil}
+	}
+
+	//#endregion SYMBOLS
+
+	//#region Advanced symbols
 	// ToDo, add mul and div
 	wasArithEquable := false
 	var arithTok TokenKind = EOF
@@ -182,14 +193,39 @@ func (l *Lexer) parseToken() Token {
 		wasArithEquable = true
 		arithTok = MINUS
 	}
+	if c == '*' {
+		wasArithEquable = true
+		arithTok = STAR
+	}
+	if c == '/' {
+		wasArithEquable = true
+		arithTok = SLASH
+	}
+	if c == '%' {
+		wasArithEquable = true
+		arithTok = PERCENT
+	}
 	if wasArithEquable {
 		if l.stream.Next() == '=' {
-			arithTok = TokenKind(int(arithTok) + 1) // Hacky shit but idc
+			arithTok = TokenKind(int(arithTok) + 1) // Hacky shit but idc it works
 			l.stream.Next()
 		}
+		if l.stream.Current() == '/' {
+			// Skip comment
+			for {
+				c := l.stream.Next()
+				if c == '\n' || c == eof_char {
+					break
+				}
+			}
+			return l.parseToken()
+		}
+
 		return Token{arithTok, nil}
 	}
+	//#endregion Advanced symbols
 
+	//#region Litterals
 	if unicode.IsLetter(c) || c == '_' {
 		sb := strings.Builder{}
 		sb.Reset()
@@ -208,16 +244,113 @@ func (l *Lexer) parseToken() Token {
 		switch str {
 		case "mod":
 			return Token{MOD, nil}
+		case "use":
+			return Token{USE, nil}
+		case "alias":
+			return Token{ALIAS, nil}
 		case "if":
 			return Token{IF, nil}
 		case "else":
 			return Token{ELSE, nil}
+		case "struct":
+			return Token{STRUCT, nil}
+		case "enum":
+			return Token{ENUM, nil}
+		case "var":
+			return Token{VAR, nil}
+		case "const":
+			return Token{CONST, nil}
+		case "rdo":
+			return Token{RDO, nil}
+		case "ref":
+			return Token{REF, nil}
+		case "attr":
+			return Token{ATTR, nil}
 		}
 		return Token{NAME, str}
 	}
 
 	// handle strings someday
+	if c == '"' {
+		sb := strings.Builder{}
+
+		for {
+			next := l.stream.Next()
+			if next == '"' {
+				break
+			}
+			if next == '\n' || next == eof_char {
+				log.Fatalf("String was unterminated at line %d\n", l.stream.lineIdx)
+			}
+			sb.WriteRune(next)
+		}
+
+		l.stream.Next()
+		return Token{Kind: STRING, Data: sb.String()}
+	}
+
+	if unicode.IsDigit(c) {
+		sb := strings.Builder{}
+		sb.WriteRune(c)
+		isDecimal := false
+		for {
+			c := l.stream.Next()
+
+			if unicode.IsDigit(c) {
+				sb.WriteRune(c)
+			} else if c == '.' {
+				if isDecimal {
+					break // using dot notation on a float
+				}
+				isDecimal = true
+				sb.WriteRune(c)
+			} else if unicode.IsLetter(c) {
+				// ToDo: handle special numbers
+				log.Fatalf("Numbers cannot be followed by letters at line %d\n", l.stream.lineIdx+1)
+			} else {
+				break
+			}
+		}
+		if isDecimal {
+			f, err := strconv.ParseFloat(sb.String(), 64)
+			if err != nil {
+				panic(err) // unreachable
+			}
+			return Token{DECIMAL, f}
+		} else {
+			i, err := strconv.ParseInt(sb.String(), 10, 64)
+			if err != nil {
+				panic(err) // unreachable
+			}
+			return Token{NUMBER, i}
+		}
+	}
+	//#endregion Litterals
 
 	log.Fatalf("Unexpected char %c at line %d", c, l.stream.lineIdx)
 	return Token{}
+}
+
+func (l *Lexer) singleOrDoubleToken(c rune, single, double TokenKind) (TokenKind, bool) {
+	if l.stream.Current() != c {
+		return 0, false
+	}
+
+	if l.stream.Next() == c {
+		l.stream.Next()
+		return double, true
+	}
+
+	return single, true
+}
+
+func (l *Lexer) matchSymbols(toks map[rune]TokenKind) (TokenKind, bool) {
+	c := l.stream.Current()
+	for key, value := range toks {
+		if c == key {
+			l.stream.Next()
+			return value, true
+		}
+	}
+	return 0, false
 }
