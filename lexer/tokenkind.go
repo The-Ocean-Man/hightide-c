@@ -32,15 +32,23 @@ const (
 	PERCENT
 	PERCENTEQ
 
-	LPAREN  // (
-	RPAREN  // )
-	LBRACE  // {
-	RBRACE  // }
-	LSQUARE // [
-	RSQUARE // ]
-	DOLLAR  // $
-	COMMA   // ,
-	BANG    // !
+	LPAREN    // (
+	RPAREN    // )
+	LBRACE    // {
+	RBRACE    // }
+	LSQUARE   // [
+	RSQUARE   // ]
+	DOLLAR    // $
+	COMMA     // ,
+	BANG      // !
+	AMPERSAND // &
+
+	LESSTHAN    // <
+	GREATERTHAN // >
+	LESSEQ      // <=
+	GREATEREQ   // >=
+	SHIFTLEFT   // <<
+	SHIFTRIGHT  // >>
 
 	DOT        // .
 	DOTDOT     // ..

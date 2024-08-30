@@ -38,10 +38,6 @@ func isVarDecToken(kind lex.TokenKind) bool {
 	return kind == lex.VAR || kind == lex.CONST || kind == lex.RDO
 }
 
-func isExprStartToken(kind lex.TokenKind) bool {
-	return kind == lex.NUMBER || kind == lex.DECIMAL || kind == lex.LPAREN || kind == lex.MINUS || kind == lex.BANG // kind == lex.
-}
-
 func (p *Parser) ParseVarDec() *ast.VarDecNode {
 	decTokKind := p.ExpectAnyOf(lex.VAR, lex.CONST, lex.RDO).Kind
 	_ = decTokKind

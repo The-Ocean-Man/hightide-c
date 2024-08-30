@@ -14,17 +14,21 @@ const (
 	NKFuncCall
 	NKFuncDec
 	NKIndex
+	NKDeref
 	NKIdent
 	NKBinaryAdd
 	NKBinarySub
 	NKBinaryMul
 	NKBinaryDiv
 	NKBinaryRem
-	NKUnaryNegate
+	NKUnaryNegate // !foo
+	NKUnaryInvert // -foo
 	NKUnaryOwnPtr
 	NKUnaryREF
 	NKUnaryRDO
 	NKUnaryCONST
+	NKUnaryPtrTo // * unary
+	NKUnaryRefTo // & unary
 	NKString
 	NKInt
 	NKFloat
@@ -96,6 +100,14 @@ type IndexNode struct {
 
 func (n IndexNode) GetKind() UnlinkedNodeKind {
 	return NKIndex
+}
+
+type DerefNode struct {
+	Inner Node
+}
+
+func (n DerefNode) GetKind() UnlinkedNodeKind {
+	return NKDeref
 }
 
 type BinaryOperatorNode struct {

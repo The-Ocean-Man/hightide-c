@@ -29,7 +29,7 @@ func main() {
 	// lexer.PrintTree(lines)
 	p := parser.MakeParser(lines)
 	prog := p.ParseProgram()
-	// fmt.Println(prog.Children[0].(*ast.ModuleNode).Name.GetString())
+
 	for _, dec := range prog.Children {
 		if v, ok := dec.(*ast.VarDecNode); ok {
 			_ = v
@@ -59,7 +59,11 @@ func evalExpr(n ast.Node) float64 {
 	if u, ok := n.(*ast.UnaryOperatorNode); ok {
 		switch u.GetKind() {
 		case ast.NKUnaryNegate:
+			return 10 * evalExpr(u.Child)
+		case ast.NKUnaryInvert:
 			return -evalExpr(u.Child)
+		case ast.NKUnaryRDO:
+			return 100 * evalExpr(u.Child)
 		}
 	}
 	if i, ok := n.(*ast.IntLitteralNode); ok {

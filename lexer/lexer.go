@@ -165,6 +165,7 @@ func (l *Lexer) parseToken() Token {
 		'$': DOLLAR,
 		',': COMMA,
 		'!': BANG,
+		'&': AMPERSAND,
 	}); ok {
 		return Token{tok, nil}
 	}
@@ -176,6 +177,34 @@ func (l *Lexer) parseToken() Token {
 		return Token{tok, nil}
 	}
 	if tok, ok := l.singleOrDoubleToken('=', EQ, EQEQ); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.singleOrDoubleToken('<', LESSTHAN, SHIFTLEFT); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.singleOrDoubleToken('<', GREATERTHAN, SHIFTRIGHT); ok {
+		return Token{tok, nil}
+	}
+
+	if tok, ok := l.multiToken('+', PLUS, map[rune]TokenKind{'=': PLUSEQ}); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.multiToken('-', MINUS, map[rune]TokenKind{'=': MINUSEQ}); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.multiToken('*', STAR, map[rune]TokenKind{'=': STAREQ}); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.multiToken('/', SLASH, map[rune]TokenKind{'=': SLASHEQ}); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.multiToken('%', PERCENT, map[rune]TokenKind{'=': PERCENTEQ}); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.multiToken('<', LESSTHAN, map[rune]TokenKind{'<': SHIFTLEFT, '=': LESSEQ}); ok {
+		return Token{tok, nil}
+	}
+	if tok, ok := l.multiToken('>', GREATERTHAN, map[rune]TokenKind{'>': SHIFTRIGHT, '=': GREATEREQ}); ok {
 		return Token{tok, nil}
 	}
 
@@ -339,6 +368,23 @@ func (l *Lexer) singleOrDoubleToken(c rune, single, double TokenKind) (TokenKind
 	if l.stream.Next() == c {
 		l.stream.Next()
 		return double, true
+	}
+
+	return single, true
+}
+
+func (l *Lexer) multiToken(c rune, single TokenKind, extra map[rune]TokenKind) (TokenKind, bool) {
+	if l.stream.Current() != c {
+		return 0, false
+	}
+
+	current := l.stream.Next()
+
+	for ex, t := range extra {
+		if current == ex {
+			l.stream.Next()
+			return t, true
+		}
 	}
 
 	return single, true

@@ -4,31 +4,37 @@ package parser
 import (
 	"fmt"
 	"log"
+	"reflect"
 
 	"github.com/FridaFino/goalgorithms/structure/dynamicarray"
 	"github.com/The-Ocean-Man/hightide-c/ast"
 	"github.com/The-Ocean-Man/hightide-c/lexer"
 )
 
-const ( // Operator precedence
-	PREC_NEGATE = 10
-	PREC_INVOKE // calling function
-	PREC_INDEX
+// const ( // Operator precedence
+// 	PREC_NEGATE = 10
+// 	PREC_INVOKE // calling function
+// 	PREC_INDEX
 
-	PREC_PLUS = 20
-	PREC_MINUS
+// 	PREC_PLUS = 20
+// 	PREC_MINUS
 
-	PREC_TIMES = 30
-	PREC_DIV
-	PREC_MODULO
+// 	PREC_TIMES = 30
+// 	PREC_DIV
+// 	PREC_MODULO
 
-	PREC_REF = 40
-	PREC_OWNPTR
-	PREC_RDO
-	PREC_CONST
-)
+// 	PREC_REF = 40
+// 	PREC_OWNPTR
+// 	PREC_RDO
+// 	PREC_CONST
+// )
 
-type ExprBit any // lexer.TokenKind || ast.Node(another expr basically). since Node is another 'any'm if ExprBit is not NodeKind, it is Node
+func isExprStartToken(kind lexer.TokenKind) bool {
+	return kind == lexer.NUMBER || kind == lexer.DECIMAL || kind == lexer.LPAREN || kind == lexer.MINUS || kind == lexer.BANG || // kind == lexer.
+		kind == lexer.STAR || kind == lexer.AMPERSAND
+}
+
+type ExprBit any // lexer.TokenKind || ast.Node(another expr basically). since Node is another 'any' if ExprBit is not NodeKind, it is Node
 
 //#region
 // func ParseExpression(bits []ExprBit) ast.Node {
@@ -69,6 +75,43 @@ type ExprBit any // lexer.TokenKind || ast.Node(another expr basically). since N
 // }
 //#endregion
 
+func doUnary(left, right ExprBit, tokenKind lexer.TokenKind, nodeKind ast.UnlinkedNodeKind) (ExprBit, bool) {
+	if tok, ok := left.(lexer.TokenKind); ok && tok == tokenKind { // bang is tmp, use minus
+		if n, ok := right.(ast.Node); ok {
+			return &ast.UnaryOperatorNode{Child: n, Kind: nodeKind}, true
+		} else {
+			log.Fatalf("Expected expr after unary '%c' but got: %d\n", tokenKind, tok)
+		}
+	}
+	return nil, false
+}
+
+func doBinary(left, middle, right ExprBit, ops map[lexer.TokenKind]ast.UnlinkedNodeKind) (ExprBit, bool) {
+	if tok, ok := middle.(lexer.TokenKind); ok {
+		wasMatch := false
+		for op := range ops {
+			if op == tok {
+				wasMatch = true
+				break
+			}
+		}
+		if !wasMatch {
+			return nil, true
+		}
+
+		if _, ok := left.(ast.Node); !ok {
+			panic(fmt.Sprintln("Expected value before operator but got", left))
+		}
+		if _, ok := right.(ast.Node); !ok {
+
+			panic(fmt.Sprintln("Expected value before operator but got", right))
+		}
+		var kind = ops[tok]
+		return &ast.BinaryOperatorNode{Kind: kind, Left: left.(ast.Node), Right: right.(ast.Node)}, true
+	}
+	return nil, false
+}
+
 func ParseExpression(bits []ExprBit) ast.Node {
 	da := dynamicarray.DynamicArray{}
 
@@ -80,62 +123,58 @@ func ParseExpression(bits []ExprBit) ast.Node {
 
 	// negate
 	iterBitsUnary(&da, func(left, right ExprBit) ExprBit {
-		if tok, ok := left.(lexer.TokenKind); ok && tok == lexer.BANG { // bang is tmp, use minus
-			if n, ok := right.(ast.Node); ok {
-				fmt.Println(n)
-				return &ast.UnaryOperatorNode{Child: n, Kind: ast.NKUnaryNegate}
-			} else {
-				log.Fatalf("Expected value after negation but got: %d\n", tok)
-			}
+		if bit, ok := doUnary(left, right, lexer.BANG, ast.NKUnaryNegate); ok {
+			return bit
+		}
+		if bit, ok := doUnary(left, right, lexer.MINUS, ast.NKUnaryInvert); ok {
+			return bit
+		}
+		if bit, ok := doUnary(left, right, lexer.STAR, ast.NKUnaryPtrTo); ok {
+			return bit
+		}
+		if bit, ok := doUnary(left, right, lexer.AMPERSAND, ast.NKUnaryRefTo); ok {
+			return bit
+		}
+		if bit, ok := doUnary(left, right, lexer.REF, ast.NKUnaryREF); ok {
+			return bit
+		}
+		if bit, ok := doUnary(left, right, lexer.CONST, ast.NKUnaryCONST); ok {
+			return bit
+		}
+		if bit, ok := doUnary(left, right, lexer.RDO, ast.NKUnaryRDO); ok {
+			return bit
+		}
+		if bit, ok := doUnary(left, right, lexer.DOLLAR, ast.NKUnaryOwnPtr); ok {
+			return bit
 		}
 		return nil
 	})
 
 	// times, div, mod
 	iterBitsBinary(&da, func(left, middle, right ExprBit) ExprBit {
-		if tok, ok := middle.(lexer.TokenKind); ok && tok == lexer.STAR || tok == lexer.SLASH || tok == lexer.PERCENT {
-			if _, ok := left.(ast.Node); !ok {
-				log.Fatalln("Expected value before operator but got", left)
-			}
-			if _, ok := right.(ast.Node); !ok {
-				log.Fatalln("Expected value after operator but got", right)
-			}
-			var kind ast.UnlinkedNodeKind
-			if tok == lexer.STAR {
-				kind = ast.NKBinaryMul
-			} else if tok == lexer.SLASH {
-				kind = ast.NKBinaryDiv
-			} else {
-				kind = ast.NKBinaryRem
-			}
-			return &ast.BinaryOperatorNode{Kind: kind, Left: left.(ast.Node), Right: right.(ast.Node)}
+		if bit, ok := doBinary(left, middle, right, map[lexer.TokenKind]ast.UnlinkedNodeKind{
+			lexer.STAR:    ast.NKBinaryMul,
+			lexer.SLASH:   ast.NKBinaryDiv,
+			lexer.PERCENT: ast.NKBinaryRem,
+		}); ok {
+			return bit
 		}
 		return nil
 	})
 
 	// plus minus
 	iterBitsBinary(&da, func(left, middle, right ExprBit) ExprBit {
-		if tok, ok := middle.(lexer.TokenKind); ok && tok == lexer.PLUS || tok == lexer.MINUS {
-
-			if _, ok := left.(ast.Node); !ok {
-				log.Fatalln("Expected value before operator but got", left)
-			}
-			if _, ok := right.(ast.Node); !ok {
-				log.Fatalln("Expected value after operator but got", right)
-			}
-			var kind ast.UnlinkedNodeKind
-			if tok == lexer.PLUS {
-				kind = ast.NKBinaryAdd
-			} else {
-				kind = ast.NKBinarySub
-			}
-			return &ast.BinaryOperatorNode{Kind: kind, Left: left.(ast.Node), Right: right.(ast.Node)}
+		if bit, ok := doBinary(left, middle, right, map[lexer.TokenKind]ast.UnlinkedNodeKind{
+			lexer.PLUS:  ast.NKBinaryAdd,
+			lexer.MINUS: ast.NKBinarySub,
+		}); ok {
+			return bit
 		}
-		fmt.Println("nay")
 		return nil
 	})
 
 	if da.Size != 1 {
+		fmt.Println(reflect.TypeOf(da.GetData()[0]))
 		log.Fatalf("Expected expr list size to be one but was %d\n", da.Size)
 	}
 
@@ -147,17 +186,30 @@ func ParseExpression(bits []ExprBit) ast.Node {
 	return s
 }
 
-// Return nil if nothing was detected, else return a value which will replace all its components
-func iterBitsUnary(da *dynamicarray.DynamicArray, action func(left ExprBit, right ExprBit) ExprBit) {
-	var idx int = 0
+func bitIsTokenKindOrNil(b ExprBit) (ret bool) {
+	if b == nil {
+		return true
+	}
+	_, ret = b.(lexer.TokenKind)
+	return
+}
+
+// Return nil if nothing was detected, else return a value which will replace all its components.
+// Unary iteration is dont in reverse which allows things like **int and such
+func iterBitsUnary(da *dynamicarray.DynamicArray, action func(left, right ExprBit) ExprBit) { // prev is the token before left, used in cases like a - -b
+	var idx int = da.Size - 2
+
 	for {
-		if da.Size < 2 || idx+1 >= da.Size {
+		if da.Size < 2 || idx <= 0 {
 			break
 		}
-
+		if !bitIsTokenKindOrNil(noerr(da.Get(idx - 1))) { // ensures that tokens like minus are only parsed as unary when they should be
+			idx--
+			continue
+		}
 		val := action(noerr(da.Get(idx)), noerr(da.Get(idx+1)))
 		if val == nil {
-			idx++
+			idx--
 			continue
 		} // else
 
@@ -195,7 +247,10 @@ func iterBitsBinary(da *dynamicarray.DynamicArray, action func(left, middle, rig
 		pushElem(da, idx, val)
 	}
 }
-func noerr(a any, _ error) any {
+func noerr(a any, err error) any {
+	if err != nil {
+		return nil
+	}
 	return a
 }
 
