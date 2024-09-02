@@ -40,7 +40,6 @@ func isVarDecToken(kind lex.TokenKind) bool {
 
 func (p *Parser) ParseVarDec() *ast.VarDecNode {
 	decTokKind := p.ExpectAnyOf(lex.VAR, lex.CONST, lex.RDO).Kind
-	_ = decTokKind
 	var mut ast.Mutability = ast.Mutable
 	switch decTokKind {
 	case lex.CONST:
@@ -69,15 +68,69 @@ func (p *Parser) ParseExpr() ast.Node {
 	return ParseExpression(bits)
 }
 func (p *Parser) ParseExprBit() ExprBit {
-	term := p.ParseExprTerminal()
+	bit := p.ParseExprTerminal()
+
+	if _, isNode := bit.(ast.Node); !isNode {
+		return bit
+	}
+	for {
+		if p.OptionalNoVal(lex.LPAREN) { // func invocation
+			if callee, ok := bit.(ast.Node); ok {
+				args := p.ParseArgsListWithTerm(lex.RPAREN)
+				bit = &ast.FuncCallNode{Func: callee, Args: args}
+			}
+		} else if p.OptionalNoVal(lex.LSQUARE) { // indexing
+			if outer, ok := bit.(ast.Node); ok {
+				args := p.ParseArgsListWithTerm(lex.RSQUARE)
+				bit = &ast.IndexNode{Outer: outer, Inner: args}
+			} else {
+				panic("Expected expression as index")
+			}
+		} else if tok, found := p.Optional(lex.DOT, lex.COLONCOLON); found {
+			isDot := tok.Kind == lex.DOT
+
+			if p.OptionalNoVal(lex.STAR) {
+				if !isDot {
+					panic("Cannot use foo::* syntax")
+				}
+				bit = &ast.DerefNode{Inner: bit.(ast.Node)} // bit is verified as ast.Node
+				continue
+			}
+
+			inner := p.ParseIdent()
+			bit = &ast.PropertyIndexNode{Outer: bit.(ast.Node), Inner: inner, IsDot: isDot}
+		} else {
+			break
+		}
+	}
 
 	// account for invocations and indexing
-	return term
+	return bit
+}
+
+// Long name, parser the arguments of a function call
+func (p *Parser) ParseArgsListWithTerm(terminator lex.TokenKind) []ast.Node {
+	args := make([]ast.Node, 0)
+
+	for {
+		if _, ok := p.Optional(terminator); ok {
+			break
+		}
+
+		arg := p.ParseExpr()
+		args = append(args, arg)
+
+		tok := p.ExpectAnyOf(terminator, lex.COMMA)
+		if tok.Kind == terminator {
+			break
+		}
+	}
+	return args
 }
 
 func (p *Parser) ParseExprTerminal() ExprBit {
 	// current := p.walker.Get()
-	if p.IsCurrent(lex.EOL, lex.EOF, lex.RPAREN, lex.COMMA) { // end of expr
+	if p.IsCurrent(lex.EOL, lex.EOF, lex.RPAREN, lex.RSQUARE, lex.COMMA) { // end of expr
 		return nil
 	}
 	if p.IsCurrent(lex.STRING) {
@@ -97,7 +150,6 @@ func (p *Parser) ParseExprTerminal() ExprBit {
 		return p.ParseIdent()
 	}
 	if p.IsCurrent(lex.LPAREN) {
-		fmt.Println("paren")
 		return p.ParseParenExpr()
 	}
 	if t, ok := p.Optional(lex.PLUS, lex.MINUS, lex.STAR, lex.SLASH, lex.PERCENT, lex.BANG,
@@ -118,29 +170,30 @@ func (p *Parser) ParseParenExpr() ast.Node {
 	return e
 }
 
-func (p *Parser) ParseIdent() *ast.IdentNode {
-	first := p.Expect(lex.NAME)
-	top := &ast.IdentNode{}
-	top.Name = first.Data.(string)
-	node := top
+func (p *Parser) ParseIdent() ast.Node {
+	name := p.Expect(lex.NAME)
+	// top := &ast.IdentNode{}
+	// top.Name = first.Data.(string)
+	// var node ast.InnerSettable = top
 
-	for {
-		if _, ok := p.Optional(lex.DOT); ok {
-			node.UsedDot = true
-		} else if _, ok := p.Optional(lex.COLONCOLON); ok {
-			node.UsedDot = false
-		} else {
-			break
-		}
+	// for {
+	// 	if p.OptionalNoVal(lex.DOT) {
+	// 		node.UsedDot = true
+	// 	} else if p.OptionalNoVal(lex.COLONCOLON) {
+	// 		node.UsedDot = false
+	// 	} else {
+	// 		break
+	// 	}
 
-		name := p.Expect(lex.NAME)
-		lower := &ast.IdentNode{}
-		lower.Name = name.Data.(string)
-		node.Child = lower
-		node = lower
-	}
+	// 	name := p.Expect(lex.NAME)
+	// 	lower := &ast.IdentNode{}
+	// 	lower.Name = name.Data.(string)
+	// 	node.SetInner(lower)
 
-	return top
+	// 	node = lower
+	// }
+
+	return &ast.IdentNode{Name: name.Data.(string)}
 }
 
 func (p *Parser) Expect(kind lex.TokenKind) lex.Token {
@@ -149,8 +202,7 @@ func (p *Parser) Expect(kind lex.TokenKind) lex.Token {
 		p.walker.Next()
 		return t
 	}
-	log.Fatalf("Expected %d but got %d instead", kind, t.Kind)
-	return lex.Token{}
+	panic(fmt.Sprintf("Expected %d but got %d instead", kind, t.Kind))
 }
 
 func (p *Parser) ExpectAnyOf(kinds ...lex.TokenKind) lex.Token {
@@ -162,8 +214,8 @@ func (p *Parser) ExpectAnyOf(kinds ...lex.TokenKind) lex.Token {
 		}
 	}
 
-	log.Fatalf("Unexpected %d", t.Kind)
-	return lex.Token{}
+	panic(fmt.Sprintf("Unexpected %d", t.Kind))
+
 }
 
 // Returns true if got token, and false if not
@@ -189,6 +241,11 @@ func (p *Parser) IsCurrent(kinds ...lex.TokenKind) bool {
 }
 
 // Returns true if got token, and false if not
+
+func (p *Parser) OptionalNoVal(kinds ...lex.TokenKind) bool {
+	_, found := p.Optional(kinds...)
+	return found
+}
 
 func (p *Parser) Optional(kinds ...lex.TokenKind) (lex.Token, bool) {
 	t := p.walker.Get()

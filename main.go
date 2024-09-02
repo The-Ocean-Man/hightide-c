@@ -29,6 +29,7 @@ func main() {
 	// lexer.PrintTree(lines)
 	p := parser.MakeParser(lines)
 	prog := p.ParseProgram()
+	// fmt.Println(printExpr(prog.Children[0]))
 
 	for _, dec := range prog.Children {
 		if v, ok := dec.(*ast.VarDecNode); ok {
@@ -59,7 +60,12 @@ func evalExpr(n ast.Node) float64 {
 	if u, ok := n.(*ast.UnaryOperatorNode); ok {
 		switch u.GetKind() {
 		case ast.NKUnaryNegate:
-			return 10 * evalExpr(u.Child)
+			n := evalExpr(u.Child)
+			if n == 0 {
+				return 1
+			} else {
+				return 0
+			}
 		case ast.NKUnaryInvert:
 			return -evalExpr(u.Child)
 		case ast.NKUnaryRDO:
@@ -73,4 +79,27 @@ func evalExpr(n ast.Node) float64 {
 		return f.Value
 	}
 	panic(fmt.Sprintln("Unsupported expr type", n.GetKind()))
+}
+
+func printExpr(e ast.Node) string {
+	if bin, ok := e.(*ast.BinaryOperatorNode); ok {
+		if bin.Kind == ast.NKBinaryAdd {
+			return fmt.Sprintf("(%s + %s)", printExpr(bin.Left), printExpr(bin.Right))
+		}
+		if bin.Kind == ast.NKBinarySub {
+			return fmt.Sprintf("(%s - %s)", printExpr(bin.Left), printExpr(bin.Right))
+		}
+		if bin.Kind == ast.NKBinaryMul {
+			return fmt.Sprintf("(%s * %s)", printExpr(bin.Left), printExpr(bin.Right))
+		}
+	}
+	if un, ok := e.(*ast.UnaryOperatorNode); ok {
+		if un.Kind == ast.NKUnaryInvert {
+			return fmt.Sprintf("-%s", printExpr(un.Child))
+		}
+	}
+	if i, ok := e.(*ast.IntLitteralNode); ok {
+		return fmt.Sprint(i.Value)
+	}
+	return "<>"
 }

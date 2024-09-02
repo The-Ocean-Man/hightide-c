@@ -1,11 +1,11 @@
 // Unlinked AST
 package ast
 
-import (
-	"fmt"
-)
-
 type UnlinkedNodeKind int
+
+type InnerSettable interface {
+	SetInner(Node)
+}
 
 const (
 	NKProgram UnlinkedNodeKind = iota
@@ -15,6 +15,7 @@ const (
 	NKFuncDec
 	NKIndex
 	NKDeref
+	NKPropertyIndex
 	NKIdent
 	NKBinaryAdd
 	NKBinarySub
@@ -95,19 +96,11 @@ func (n FuncCallNode) GetKind() UnlinkedNodeKind {
 
 type IndexNode struct {
 	Outer Node
-	Inner Node
+	Inner []Node
 }
 
 func (n IndexNode) GetKind() UnlinkedNodeKind {
 	return NKIndex
-}
-
-type DerefNode struct {
-	Inner Node
-}
-
-func (n DerefNode) GetKind() UnlinkedNodeKind {
-	return NKDeref
 }
 
 type BinaryOperatorNode struct {
@@ -130,27 +123,50 @@ func (n UnaryOperatorNode) GetKind() UnlinkedNodeKind {
 }
 
 type IdentNode struct {
-	Name    string
-	Child   *IdentNode // Optional
-	UsedDot bool       // true = . || false = ::
+	Name string
 }
 
 func (n IdentNode) GetString() string {
-	var con string
-	if n.UsedDot {
-		con = "."
-	} else {
-		con = "::"
-	}
-	if n.Child == nil {
-		return n.Name
-	} else {
-		return fmt.Sprintf("%s%s%s", n.Name, con, n.Child.GetString())
-	}
+	// var con string
+	// if n.UsedDot {
+	// 	con = "."
+	// } else {
+	// 	con = "::"
+	// }
+	// if n.Child == nil {
+	// 	return n.Name
+	// } else {
+	// 	return fmt.Sprintf("%s%s%s", n.Name, con, n.Child.GetString())
+	// }
+	return n.Name
 }
 
 func (n IdentNode) GetKind() UnlinkedNodeKind {
 	return NKIdent
+}
+
+// Inner.*
+type DerefNode struct {
+	Inner Node
+}
+
+func (d *DerefNode) SetInner(n Node) {
+	d.Inner = n
+}
+
+func (n DerefNode) GetKind() UnlinkedNodeKind {
+	return NKDeref
+}
+
+// Outer.Inner or Outer::Inner. In the case of a.b.c Outer = a.c, and Inner = c - Reqursive type
+// for multiple: a.b.c.d = (((a,b),c),d), like a linked list with the deepest property highest up in the
+type PropertyIndexNode struct {
+	Outer, Inner Node
+	IsDot        bool // if true: Outer.Inner, if false: Outer::Inner
+}
+
+func (pi PropertyIndexNode) GetKind() UnlinkedNodeKind {
+	return NKPropertyIndex
 }
 
 type ModuleNode struct {

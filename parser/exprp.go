@@ -31,7 +31,7 @@ import (
 
 func isExprStartToken(kind lexer.TokenKind) bool {
 	return kind == lexer.NUMBER || kind == lexer.DECIMAL || kind == lexer.LPAREN || kind == lexer.MINUS || kind == lexer.BANG || // kind == lexer.
-		kind == lexer.STAR || kind == lexer.AMPERSAND
+		kind == lexer.STAR || kind == lexer.AMPERSAND || kind == lexer.NAME
 }
 
 type ExprBit any // lexer.TokenKind || ast.Node(another expr basically). since Node is another 'any' if ExprBit is not NodeKind, it is Node
@@ -200,13 +200,14 @@ func iterBitsUnary(da *dynamicarray.DynamicArray, action func(left, right ExprBi
 	var idx int = da.Size - 2
 
 	for {
-		if da.Size < 2 || idx <= 0 {
+		if da.Size < 2 || idx < 0 {
 			break
 		}
 		if !bitIsTokenKindOrNil(noerr(da.Get(idx - 1))) { // ensures that tokens like minus are only parsed as unary when they should be
 			idx--
 			continue
 		}
+		// fmt.Println(noerr(da.Get(idx)), noerr(da.Get(idx+1)))
 		val := action(noerr(da.Get(idx)), noerr(da.Get(idx+1)))
 		if val == nil {
 			idx--
