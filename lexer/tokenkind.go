@@ -19,6 +19,10 @@ const (
 	RDO
 	REF
 	ATTR
+	ASYNC
+	RETURN
+	FOR
+	DO
 
 	// Symbols
 	PLUS

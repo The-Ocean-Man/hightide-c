@@ -295,6 +295,14 @@ func (l *Lexer) parseToken() Token {
 			return Token{REF, nil}
 		case "attr":
 			return Token{ATTR, nil}
+		case "async":
+			return Token{ASYNC, nil}
+		case "do":
+			return Token{DO, nil}
+		case "for":
+			return Token{FOR, nil}
+		case "return":
+			return Token{RETURN, nil}
 		}
 		return Token{NAME, str}
 	}
