@@ -29,6 +29,11 @@ import (
 // 	PREC_CONST
 // )
 
+// Temp: this is just to test expressions, they are otherwise not allowed in top scope, as soon as funcs work, i fix this TODO
+// func isExprStartToken(kind lexer.TokenKind) bool {
+// 	return kind == lexer.RETURN
+// }
+
 func isExprStartToken(kind lexer.TokenKind) bool {
 	return kind == lexer.NUMBER || kind == lexer.DECIMAL || kind == lexer.LPAREN || kind == lexer.MINUS || kind == lexer.BANG || // kind == lexer.
 		kind == lexer.STAR || kind == lexer.AMPERSAND || kind == lexer.NAME

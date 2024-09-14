@@ -20,14 +20,20 @@ func MakeParser(l []*lex.Line) Parser {
 func (p *Parser) ParseProgram() *ast.ProgramNode {
 	topLevelStatements := make([]ast.Node, 0)
 
-	for _, ln := range p.lines {
+	for _, ln := range p.lines { // Parse Top Level
 		walker := MakeWalker(ln)
-		p.walker = &walker
+		p.walker = walker
 		if isVarDecToken(walker.Get().Kind) {
 			topLevelStatements = append(topLevelStatements, p.ParseVarDec())
-		} else if isExprStartToken(walker.Get().Kind) {
-			topLevelStatements = append(topLevelStatements, p.ParseExpr())
+		} else if walker.Get().Kind == lex.NAME {
+			topLevelStatements = append(topLevelStatements, p.ParseFuncDec())
+		} else {
+			panic("Unexpected token in toplevel")
 		}
+		// else if isExprStartToken(walker.Get().Kind) { // debug only, TODO: Remove
+		// 	p.Expect(lex.RETURN)
+		// 	topLevelStatements = append(topLevelStatements, p.ParseExpr())
+		// }
 	}
 
 	return &ast.ProgramNode{Children: topLevelStatements}
@@ -36,6 +42,64 @@ func (p *Parser) ParseProgram() *ast.ProgramNode {
 // Returns true if kind == VAR, CONST or RDO
 func isVarDecToken(kind lex.TokenKind) bool {
 	return kind == lex.VAR || kind == lex.CONST || kind == lex.RDO
+}
+
+func (p *Parser) ParseFuncDec() *ast.FuncDecNode {
+	proto := p.ParseFuncProto()
+	if len(p.walker.ln.Children) == 0 {
+		return &ast.FuncDecNode{Proto: proto, Body: nil}
+	}
+
+	block := &ast.BlockNode{Children: make([]ast.Node, 0)}
+	for _, ln := range p.walker.ln.Children {
+		p.walker = MakeWalker(ln)
+		stmt := p.ParseStatement()
+		block.Children = append(block.Children, stmt)
+	}
+	return &ast.FuncDecNode{Proto: proto, Body: block}
+}
+
+func (p *Parser) ParseFuncProto() *ast.FuncProtoNode {
+	fnName := p.Expect(lex.NAME).Data.(string)
+
+	// Parse args
+	args := make([]ast.Node, 0)
+	p.Expect(lex.LPAREN) // generics come later
+	for {
+		if p.IsCurrent(lex.EOF, lex.EOL) {
+			panic("Expected end of function proto")
+		}
+		if p.OptionalNoVal(lex.RPAREN) {
+			break
+		}
+		argName := p.Expect(lex.NAME).Data.(string)
+		argTy := p.ParseExpr()
+		args = append(args, &ast.VarDecNode{Name: argName, Type: argTy, Mut: ast.Mutable, Value: nil}) // maybe change mutable to readonly
+
+		if p.OptionalNoVal(lex.COMMA) {
+			continue
+		}
+	}
+
+	// Parse return
+	if p.IsCurrent(lex.EOL, lex.EOF) {
+		return &ast.FuncProtoNode{Name: fnName, Args: args, ReturnTy: nil}
+	}
+
+	returnTy := p.ParseExpr()
+	return &ast.FuncProtoNode{Name: fnName, Args: args, ReturnTy: returnTy}
+}
+
+// Anything inside of a function block
+func (p *Parser) ParseStatement() ast.Node {
+	c := p.walker.Get().Kind
+	if isExprStartToken(c) {
+		return p.ParseExpr()
+	} else if isVarDecToken(c) {
+		return p.ParseVarDec()
+	}
+
+	panic(fmt.Sprintln("Unexpected token in statement:", c, p.walker.Get().Data))
 }
 
 func (p *Parser) ParseVarDec() *ast.VarDecNode {

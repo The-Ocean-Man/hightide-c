@@ -13,6 +13,7 @@ const (
 	NKVarDec
 	NKFuncCall
 	NKFuncDec
+	NKFuncProto
 	NKIndex
 	NKDeref
 	NKPropertyIndex
@@ -22,6 +23,15 @@ const (
 	NKBinaryMul
 	NKBinaryDiv
 	NKBinaryRem
+	NKBinaryAssign // a = b
+	NKBinaryEq     // a == b
+	NkBinaryNeq    // a != b
+	NKBinaryLt
+	NKBinaryLeq
+	NKBinaryGt
+	NKBinaryGeq
+	NKBinaryShl
+	NKBinaryShr
 	NKUnaryNegate // !foo
 	NKUnaryInvert // -foo
 	NKUnaryOwnPtr
@@ -48,14 +58,22 @@ func (n ProgramNode) GetKind() UnlinkedNodeKind {
 }
 
 type FuncDecNode struct {
-	Name     string
-	Args     []Node
-	ReturnTy Node       //optional
-	Body     *BlockNode // if nil then its extern function
+	Proto *FuncProtoNode
+	Body  *BlockNode // if nil then its extern function
 }
 
 func (n FuncDecNode) GetKind() UnlinkedNodeKind {
 	return NKFuncDec
+}
+
+type FuncProtoNode struct {
+	Name     string
+	Args     []Node
+	ReturnTy Node //optional
+}
+
+func (n FuncProtoNode) GetKind() UnlinkedNodeKind {
+	return NKFuncProto
 }
 
 type BlockNode struct {

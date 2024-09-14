@@ -10,10 +10,10 @@ type LineWalker struct {
 	idx  int
 }
 
-func MakeWalker(l *lexer.Line) LineWalker {
+func MakeWalker(l *lexer.Line) *LineWalker {
 	w := LineWalker{l, lexer.Token{}, 0}
 	w.Next()
-	return w
+	return &w
 }
 
 func (w *LineWalker) Next() lexer.Token {

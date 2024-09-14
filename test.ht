@@ -1,2 +1,4 @@
-5*4+2*(10-2)/2
-5+9
+
+main(argc int, argv **char) int
+    var i = 0
+    puts("Hello World")
