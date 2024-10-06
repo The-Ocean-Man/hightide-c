@@ -23,6 +23,7 @@ const (
 	RETURN
 	FOR
 	DO
+	EXTERN
 
 	// Symbols
 	PLUS

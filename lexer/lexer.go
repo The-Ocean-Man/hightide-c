@@ -154,6 +154,26 @@ func (l *Lexer) parseToken() Token {
 
 	c = l.stream.Current()
 
+	if c == '/' {
+		c = l.stream.Next()
+		if c == '=' {
+			l.stream.Next()
+			return Token{Data: nil, Kind: SLASHEQ}
+		}
+		if c == '/' {
+			for {
+				l.stream.Next()
+				if l.stream.Current() == '\n' {
+					l.stream.Next()
+					return Token{EOL, nil}
+				}
+				if l.stream.Current() == 0 {
+					return Token{EOF, nil}
+				}
+			}
+		}
+	}
+
 	//#region SYMBOLS
 	if tok, ok := l.matchSymbols(map[rune]TokenKind{
 		'(': LPAREN,
@@ -195,9 +215,9 @@ func (l *Lexer) parseToken() Token {
 	if tok, ok := l.multiToken('*', STAR, map[rune]TokenKind{'=': STAREQ}); ok {
 		return Token{tok, nil}
 	}
-	if tok, ok := l.multiToken('/', SLASH, map[rune]TokenKind{'=': SLASHEQ}); ok {
-		return Token{tok, nil}
-	}
+	// if tok, ok := l.multiToken('/', SLASH, map[rune]TokenKind{'=': SLASHEQ}); ok { // Dont use this cuz comments
+	// 	return Token{tok, nil}
+	// }
 	if tok, ok := l.multiToken('%', PERCENT, map[rune]TokenKind{'=': PERCENTEQ}); ok {
 		return Token{tok, nil}
 	}
@@ -212,46 +232,47 @@ func (l *Lexer) parseToken() Token {
 
 	//#region Advanced symbols
 	// ToDo, add mul and div
-	wasArithEquable := false
-	var arithTok TokenKind = EOF
-	if c == '+' {
-		wasArithEquable = true
-		arithTok = PLUS
-	}
-	if c == '-' {
-		wasArithEquable = true
-		arithTok = MINUS
-	}
-	if c == '*' {
-		wasArithEquable = true
-		arithTok = STAR
-	}
-	if c == '/' {
-		wasArithEquable = true
-		arithTok = SLASH
-	}
-	if c == '%' {
-		wasArithEquable = true
-		arithTok = PERCENT
-	}
-	if wasArithEquable {
-		if l.stream.Next() == '=' {
-			arithTok = TokenKind(int(arithTok) + 1) // Hacky shit but idc it works
-			l.stream.Next()
-		}
-		if l.stream.Current() == '/' {
-			// Skip comment
-			for {
-				c := l.stream.Next()
-				if c == '\n' || c == eof_char {
-					break
-				}
-			}
-			return l.parseToken()
-		}
+	// wasArithEquable := false
+	// var arithTok TokenKind = EOF
+	// if c == '+' {
+	// 	wasArithEquable = true
+	// 	arithTok = PLUS
+	// }
+	// if c == '-' {
+	// 	wasArithEquable = true
+	// 	arithTok = MINUS
+	// }
+	// if c == '*' {
+	// 	wasArithEquable = true
+	// 	arithTok = STAR
+	// }
+	// if c == '/' {
+	// 	wasArithEquable = true
+	// 	arithTok = SLASH
+	// }
+	// if c == '%' {
+	// 	wasArithEquable = true
+	// 	arithTok = PERCENT
+	// }
+	// if wasArithEquable {
+	// 	if l.stream.Next() == '=' {
+	// 		arithTok = TokenKind(int(arithTok) + 1) // Hacky shit but idc it works
+	// 		l.stream.Next()
+	// 	}
+	// 	if l.stream.Current() == '/' {
+	// 		// Skip comment
+	// 		fmt.Println("skipping comment")
+	// 		for {
+	// 			c := l.stream.Next()
+	// 			if c == '\n' || c == eof_char {
+	// 				break
+	// 			}
+	// 		}
+	// 		return l.parseToken()
+	// 	}
 
-		return Token{arithTok, nil}
-	}
+	// 	return Token{arithTok, nil}
+	// }
 	//#endregion Advanced symbols
 
 	//#region Litterals
@@ -303,6 +324,8 @@ func (l *Lexer) parseToken() Token {
 			return Token{FOR, nil}
 		case "return":
 			return Token{RETURN, nil}
+		case "extern":
+			return Token{EXTERN, nil}
 		}
 		return Token{NAME, str}
 	}

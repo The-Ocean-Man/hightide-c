@@ -1,4 +1,12 @@
 
-main(argc int, argv **char) int
-    var i = 0
-    puts("Hello World")
+
+
+main(argc int, argv **i8) int
+    var a int = 123
+    var b i8 = 321
+    var c i32 =  55+ 66 * a.*
+    // puts("Hello World")
+    putchar(63)
+
+
+putchar(c i8)

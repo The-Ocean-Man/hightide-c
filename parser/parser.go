@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/The-Ocean-Man/hightide-c/ast"
 	lex "github.com/The-Ocean-Man/hightide-c/lexer"
@@ -23,10 +22,15 @@ func (p *Parser) ParseProgram() *ast.ProgramNode {
 	for _, ln := range p.lines { // Parse Top Level
 		walker := MakeWalker(ln)
 		p.walker = walker
-		if isVarDecToken(walker.Get().Kind) {
+
+		kind := walker.Get().Kind
+
+		if isVarDecToken(kind) {
 			topLevelStatements = append(topLevelStatements, p.ParseVarDec())
-		} else if walker.Get().Kind == lex.NAME {
+		} else if kind == lex.NAME {
 			topLevelStatements = append(topLevelStatements, p.ParseFuncDec())
+		} else if kind == lex.EXTERN {
+			// Lol skill issue externs are just functions with no body
 		} else {
 			panic("Unexpected token in toplevel")
 		}
@@ -47,7 +51,7 @@ func isVarDecToken(kind lex.TokenKind) bool {
 func (p *Parser) ParseFuncDec() *ast.FuncDecNode {
 	proto := p.ParseFuncProto()
 	if len(p.walker.ln.Children) == 0 {
-		return &ast.FuncDecNode{Proto: proto, Body: nil}
+		return &ast.FuncDecNode{Proto: proto, Body: nil, IsExtern: true}
 	}
 
 	block := &ast.BlockNode{Children: make([]ast.Node, 0)}
@@ -56,7 +60,7 @@ func (p *Parser) ParseFuncDec() *ast.FuncDecNode {
 		stmt := p.ParseStatement()
 		block.Children = append(block.Children, stmt)
 	}
-	return &ast.FuncDecNode{Proto: proto, Body: block}
+	return &ast.FuncDecNode{Proto: proto, Body: block, IsExtern: false}
 }
 
 func (p *Parser) ParseFuncProto() *ast.FuncProtoNode {
@@ -94,7 +98,14 @@ func (p *Parser) ParseFuncProto() *ast.FuncProtoNode {
 func (p *Parser) ParseStatement() ast.Node {
 	c := p.walker.Get().Kind
 	if isExprStartToken(c) {
-		return p.ParseExpr()
+		expr := p.ParseExpr()
+		if p.OptionalNoVal(lex.EQ) {
+			value := p.ParseExpr()
+			p.ExpectEndCtx("assigment")
+			return &ast.AssignmentNode{Target: expr, Value: value}
+		}
+		p.ExpectEndCtx("expr")
+		return expr
 	} else if isVarDecToken(c) {
 		return p.ParseVarDec()
 	}
@@ -104,6 +115,7 @@ func (p *Parser) ParseStatement() ast.Node {
 
 func (p *Parser) ParseVarDec() *ast.VarDecNode {
 	decTokKind := p.ExpectAnyOf(lex.VAR, lex.CONST, lex.RDO).Kind
+
 	var mut ast.Mutability = ast.Mutable
 	switch decTokKind {
 	case lex.CONST:
@@ -113,8 +125,23 @@ func (p *Parser) ParseVarDec() *ast.VarDecNode {
 	case lex.VAR:
 		mut = ast.Mutable
 	}
+
 	varName := p.Expect(lex.NAME).Data.(string)
-	return &ast.VarDecNode{Name: varName, Mut: mut, Type: nil, Value: nil}
+
+	// if p.IsCurrent(lex.EQ) { // No optional type inference for now, for simplicity first version might not even have it
+	// 	fmt.Println("yes")
+	// 	p.Expect(lex.EQ)
+	// 	val := p.ParseExpr()
+	// 	return &ast.VarDecNode{Name: varName, Mut: mut, Type: nil, Value: val}
+	// }
+
+	ty := p.ParseExpr()
+	p.Expect(lex.EQ)
+	val := p.ParseExpr()
+
+	p.ExpectEndCtx("vardec")
+
+	return &ast.VarDecNode{Name: varName, Mut: mut, Type: ty, Value: val}
 }
 
 // Oh boy this is gonna be long
@@ -194,7 +221,7 @@ func (p *Parser) ParseArgsListWithTerm(terminator lex.TokenKind) []ast.Node {
 
 func (p *Parser) ParseExprTerminal() ExprBit {
 	// current := p.walker.Get()
-	if p.IsCurrent(lex.EOL, lex.EOF, lex.RPAREN, lex.RSQUARE, lex.COMMA) { // end of expr
+	if p.IsCurrent(lex.EOL, lex.EOF, lex.RPAREN, lex.RSQUARE, lex.COMMA, lex.EQ) { // end of expr
 		return nil
 	}
 	if p.IsCurrent(lex.STRING) {
@@ -220,13 +247,11 @@ func (p *Parser) ParseExprTerminal() ExprBit {
 		lex.REF, lex.CONST, lex.RDO, lex.DOLLAR); ok {
 		return t.Kind
 	}
-
 	// else
-	log.Fatalf("Unexpected token %d in expr", p.walker.Get().Kind)
-
-	return nil // unreachable
+	panic(fmt.Sprintf("Unexpected token %d in expr", p.walker.Get().Kind))
 }
 
+// This maybe should be its own type
 func (p *Parser) ParseParenExpr() ast.Node {
 	p.Expect(lex.LPAREN)
 	e := p.ParseExpr()
@@ -280,6 +305,20 @@ func (p *Parser) ExpectAnyOf(kinds ...lex.TokenKind) lex.Token {
 
 	panic(fmt.Sprintf("Unexpected %d", t.Kind))
 
+}
+
+func (p *Parser) ExpectEnd() {
+	p.ExpectAnyOf(lex.EOL, lex.EOF)
+}
+
+func (p *Parser) ExpectEndCtx(ctx string) {
+	kind := p.walker.Get().Kind
+
+	if kind == lex.EOL || kind == lex.EOF {
+		return
+	}
+
+	panic(fmt.Sprintf("Unexpected %d after %s", kind, ctx))
 }
 
 // Returns true if got token, and false if not

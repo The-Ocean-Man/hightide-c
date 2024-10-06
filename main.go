@@ -9,6 +9,7 @@ import (
 	"github.com/The-Ocean-Man/hightide-c/ast"
 	"github.com/The-Ocean-Man/hightide-c/lexer"
 	"github.com/The-Ocean-Man/hightide-c/parser"
+	"github.com/The-Ocean-Man/hightide-c/tree"
 )
 
 func main() {
@@ -31,15 +32,28 @@ func main() {
 	prog := p.ParseProgram()
 	// fmt.Println(printExpr(prog.Children[0]))
 
-	for _, dec := range prog.Children {
-		if v, ok := dec.(*ast.VarDecNode); ok {
-			_ = v
-			// fmt.Println(v)
-		} else if b, ok := dec.(*ast.BinaryOperatorNode); ok {
-			// fmt.Println(b.Left.(*ast.BinaryOperatorNode).Right.(*ast.UnaryOperatorNode).Child) // b.Left.(*ast.BinaryOperatorNode).Right.(*ast.BinaryOperatorNode).Right
-			fmt.Println(evalExpr(b))
-		}
-	}
+	mod := tree.MakeModule([]*ast.ProgramNode{prog})
+
+	tree.DiscoverTypes(mod)
+	tree.DiscoverFunctions(mod)
+	tree.DiscoverFuncArgs(mod)
+	tree.PopulateFunctions(mod)
+
+	// fmt.Println(*mod.Functions[0].Args["argc"].(*tree.BuiltinType))
+	// fmt.Println(mod.Functions[0].Body.Children[0].(*tree.VarDec).Val)
+	// fmt.Println(mod.Functions[0].Body.Children[1].(*tree.VarDec).Val)
+	// fmt.Println(mod.Functions[0].Body.Children[2].(*tree.VarDec).Val) // .(tree.BinaryOpValue).Right.(tree.BinaryOpValue).Right.(tree.Ident).Child.(*tree.VarDec).Name
+	// fmt.Println(mod.Functions[0].Body.Children[3].(*tree.FuncCall).Function.(*tree.Ident).Child.(*tree.FuncDec).ReturnType.(*tree.BuiltinType))
+
+	// for _, dec := range prog.Children {
+	// 	if v, ok := dec.(*ast.VarDecNode); ok {
+	// 		_ = v
+	// 		// fmt.Println(v)
+	// 	} else if b, ok := dec.(*ast.BinaryOperatorNode); ok {
+	// 		// fmt.Println(b.Left.(*ast.BinaryOperatorNode).Right.(*ast.UnaryOperatorNode).Child) // b.Left.(*ast.BinaryOperatorNode).Right.(*ast.BinaryOperatorNode).Right
+	// 		fmt.Println(evalExpr(b))
+	// 	}
+	// }
 }
 
 func evalExpr(n ast.Node) float64 {

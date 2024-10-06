@@ -36,49 +36,10 @@ import (
 
 func isExprStartToken(kind lexer.TokenKind) bool {
 	return kind == lexer.NUMBER || kind == lexer.DECIMAL || kind == lexer.LPAREN || kind == lexer.MINUS || kind == lexer.BANG || // kind == lexer.
-		kind == lexer.STAR || kind == lexer.AMPERSAND || kind == lexer.NAME
+		kind == lexer.STAR || kind == lexer.AMPERSAND || kind == lexer.NAME || kind == lexer.STRING
 }
 
 type ExprBit any // lexer.TokenKind || ast.Node(another expr basically). since Node is another 'any' if ExprBit is not NodeKind, it is Node
-
-//#region
-// func ParseExpression(bits []ExprBit) ast.Node {
-// 	fmt.Println(bits)
-// 	b2 := make([]ExprBit, 0)
-// 	for idx, bit := range bits {
-// 		if kind, ok := bit.(lexer.TokenKind); ok {
-// 			if kind == lexer.PLUS {
-// 				left := bits[idx-1].(ast.Node)
-// 				right := bits[idx+1].(ast.Node)
-// 				b2 = append(b2, ast.BinaryOperatorNode{Kind: ast.NKBinaryAdd, Left: left, Right: right})
-// 				continue
-// 			}
-// 			b2 = append(b2, bit) // if we dont change it we ignore it
-// 		}
-
-// 	}
-
-// 	b3 := make([]ExprBit, 0)
-// 	for idx, bit := range b2 {
-// 		if kind, ok := bit.(lexer.TokenKind); ok {
-// 			if kind == lexer.STAR {
-// 				left := bits[idx-1].(ast.Node)
-// 				right := bits[idx+1].(ast.Node)
-// 				b3 = append(b3, ast.BinaryOperatorNode{Kind: ast.NKBinaryMul, Left: left, Right: right})
-// 				continue
-// 			}
-// 			b3 = append(b3, bit) // if we dont change it we ignore it
-// 		}
-// 	}
-
-// 	if len(b3) != 1 {
-// 		log.Fatalf("Houston we have a problem %d", len(b3))
-// 	}
-// 	fmt.Println(b3)
-
-// 	return b3[0].(ast.Node)
-// }
-//#endregion
 
 func doUnary(left, right ExprBit, tokenKind lexer.TokenKind, nodeKind ast.UnlinkedNodeKind) (ExprBit, bool) {
 	if tok, ok := left.(lexer.TokenKind); ok && tok == tokenKind { // bang is tmp, use minus

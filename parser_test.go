@@ -112,6 +112,30 @@ func Test_Expression2(t *testing.T) {
 	assert(t, silly.Name == "silly", "silly name assert")
 }
 
+func Test_Assigmnents(t *testing.T) {
+	prog := generateProgramUAST(`
+main()
+	a = 123
+	b = a
+	(*b) = a + 321
+	`)
+
+	assert(t, len(prog.Children) == 1, "Parsing assigmnent func failed")
+	fn := tyAssert[*ast.FuncDecNode](t, prog.Children[0])
+	assert(t, len(fn.Body.Children) == 3, "Parsing assigmnent func body failed")
+
+	a1 := tyAssert[*ast.AssignmentNode](t, fn.Body.Children[0])
+	assert(t, a1.Target.(*ast.IdentNode).Name == "a", "Simple assigmnent target parsing failed")
+	assert(t, a1.Value.(*ast.IntLitteralNode).Value == 123, "Simple assigmnent value parsing failed")
+
+	a3 := tyAssert[*ast.AssignmentNode](t, fn.Body.Children[2])
+	target := tyAssert[*ast.UnaryOperatorNode](t, a3.Target)
+	value := tyAssert[*ast.BinaryOperatorNode](t, a3.Value)
+
+	assert(t, target.GetKind() == ast.NKUnaryPtrTo, "Complex assigmnent target parsing failed")
+	assert(t, value.GetKind() == ast.NKBinaryAdd, "Complex assigmnent value parsing failed")
+}
+
 func tyAssert[T ast.Node](t *testing.T, n ast.Node) T {
 	if node, ok := n.(T); ok {
 		return node

@@ -11,11 +11,13 @@ const (
 	NKProgram UnlinkedNodeKind = iota
 	NKModule
 	NKVarDec
+	NKAssignment
 	NKFuncCall
 	NKFuncDec
 	NKFuncProto
+	NKBlock
 	NKIndex
-	NKDeref
+	NKDeref // Depricated, use UnaryPtrTo
 	NKPropertyIndex
 	NKIdent
 	NKBinaryAdd
@@ -23,9 +25,8 @@ const (
 	NKBinaryMul
 	NKBinaryDiv
 	NKBinaryRem
-	NKBinaryAssign // a = b
-	NKBinaryEq     // a == b
-	NkBinaryNeq    // a != b
+	NKBinaryEq  // a == b
+	NkBinaryNeq // a != b
 	NKBinaryLt
 	NKBinaryLeq
 	NKBinaryGt
@@ -58,8 +59,9 @@ func (n ProgramNode) GetKind() UnlinkedNodeKind {
 }
 
 type FuncDecNode struct {
-	Proto *FuncProtoNode
-	Body  *BlockNode // if nil then its extern function
+	IsExtern bool
+	Proto    *FuncProtoNode
+	Body     *BlockNode // if nil then its extern function
 }
 
 func (n FuncDecNode) GetKind() UnlinkedNodeKind {
@@ -80,6 +82,10 @@ type BlockNode struct {
 	Children []Node
 }
 
+func (BlockNode) GetKind() UnlinkedNodeKind {
+	return NKBlock
+}
+
 type StructNode struct {
 	Name string
 }
@@ -95,12 +101,21 @@ const (
 type VarDecNode struct {
 	Name  string
 	Mut   Mutability // This is stored in the type of the var
-	Type  Node       // Optional, infer
-	Value Node       // Optional
+	Type  Node       // Optional, infer (not optional actually)
+	Value Node       // Optional (not optional either for testing purposes)
 }
 
 func (n VarDecNode) GetKind() UnlinkedNodeKind {
 	return NKVarDec
+}
+
+type AssignmentNode struct {
+	Target Node
+	Value  Node
+}
+
+func (n AssignmentNode) GetKind() UnlinkedNodeKind {
+	return NKAssignment
 }
 
 type FuncCallNode struct {

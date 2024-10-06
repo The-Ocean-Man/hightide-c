@@ -37,7 +37,7 @@ func Test_FuncProto1(t *testing.T) {
 func Test_Func1(t *testing.T) {
 	prog := generateProgramUAST(`
 main(argc *int, argv*char) int
-	var funnyVar = 0
+	var funnyVar int = 0
 `)
 	_ = prog
 
